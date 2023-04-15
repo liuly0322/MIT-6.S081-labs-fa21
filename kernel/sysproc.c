@@ -110,10 +110,10 @@ sys_trace(void) {
   return 0;
 }
 
-uint64
+extern uint64
 count_free_memory();
 
-uint64
+extern uint64
 count_processes();
 
 // get system information
