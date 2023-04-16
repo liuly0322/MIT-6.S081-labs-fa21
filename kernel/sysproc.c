@@ -127,7 +127,7 @@ sys_sysinfo(void) {
   info.freemem = count_free_memory();
   info.nproc = count_processes();
 
-  if (copyout(myproc()->pagetable, user_info_struct_addr, (char*)&info, 16) < 0)
+  if (copyout(myproc()->pagetable, user_info_struct_addr, (char*)&info, sizeof(struct sysinfo)) < 0)
     return -1;
   
   return 0;
