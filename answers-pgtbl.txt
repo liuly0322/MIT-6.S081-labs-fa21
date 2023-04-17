@@ -1,0 +1,24 @@
+The output:
+page table 0x0000000087f6e000
+ ..0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+ .. ..0: pte 0x0000000021fda401 pa 0x0000000087f69000
+ .. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+ .. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000
+ .. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+ ..255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+ .. ..511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+ .. .. ..509: pte 0x0000000021fdd813 pa 0x0000000087f76000
+ .. .. ..510: pte 0x0000000021fddc07 pa 0x0000000087f77000
+ .. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000
+
+Task: Explain the output of vmprint in terms of Fig 3-4 from the text.
+    1. What does page 0 contain?
+    2. What is in page 2?
+    3. When running in user mode, could the process read/write the memory mapped by page 1?
+    4. What does the third to last page contain?
+
+Answers:
+    1. User program text and data.
+    2. User stack.
+    3. No. PTE_U is invalid. It's a guard page.
+    4. USYSCALL we have added, so PTE_U is valid.
