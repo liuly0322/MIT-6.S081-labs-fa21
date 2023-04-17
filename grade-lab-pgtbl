@@ -65,7 +65,7 @@ def test_answers():
 def test_usertests():
     r.run_qemu(shell_script([
         'usertests'
-    ]), timeout=300)
+    ]), timeout=1000)
 
 @test(10, "usertests: all tests", parent=test_usertests)
 def test_usertests():

@@ -77,10 +77,33 @@ sys_sleep(void)
 
 
 #ifdef LAB_PGTBL
-int
+extern void vmprint(pagetable_t pagetable);
+extern pte_t* walk(pagetable_t pagetable, uint64 va, int alloc);
+
+uint64
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  uint64 startva, bitmasks;
+  int n;
+  if (argaddr(0, &startva) < 0 || argint(1, &n) < 0 || argaddr(2, &bitmasks) < 0)
+    return -1;
+
+  // to simplify the problem, we assume n <= 32
+  if (n > 32)
+    panic("not implemented!");
+
+  pagetable_t pagetable = myproc()->pagetable;
+  uint bitmask = 0;
+
+  for (int i = 0; i < n; i++) {
+    uint64 pageva = startva + i * PGSIZE;
+    pte_t* pte_p = walk(pagetable, pageva, 0);
+    if (pte_p == 0)
+      return -1;
+    bitmask |= ((*pte_p & PTE_A) != 0) << i;
+    *pte_p &= ~PTE_A;
+  }
+  copyout(pagetable, bitmasks, (char*)&bitmask, sizeof(uint));
   return 0;
 }
 #endif
