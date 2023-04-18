@@ -1,0 +1,30 @@
+# Answers
+
+## Q1
+
+a~ registers. They can be used as function parameters. And a0, a1 can be used for return value of a function.
+
+## Q2
+
+The compiler inline functions, so `f(8)+1` is replaced by 12.
+
+## Q3
+
+`jalr 1536(ra)`, from the comment we know that printf is located at 0x630.
+
+## Q4
+
+ra is caller save. after the jalr to printf, the ra is 0x38, which exactly is the return address of printf function.
+
+## Q5
+
+The output is `HE110 World`.
+
+- 57616 in hex is E110.
+- `&i` is cast to `char*`, so: `0x72, 0x6c, 0x64, 0x00` is the string.
+
+If RISC-V is big-endian, the value of i can be set to 0x726c6400. 57616 does't need to change, because there is no cast here.
+
+## Q6
+
+It depend on the value of a2 register.
