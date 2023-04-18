@@ -160,6 +160,10 @@ freeproc(struct proc *p)
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
+  p->interval = 0;
+  p->handler = 0;
+  p->alarm = 0;
+  p->no_alarm = 0;
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;

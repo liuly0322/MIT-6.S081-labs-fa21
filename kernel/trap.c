@@ -10,6 +10,7 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+extern struct proc proc[NPROC];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -76,9 +77,25 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  // if this is a timer interrupt.
+  if(which_dev == 2) {
+    // check every process if they need to handle alarm
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNING && !p->no_alarm && p->interval && ++(p->alarm) >= p->interval) {
+        p->alarm = 0;
+        p->no_alarm = 1;
+        p->alarm_trapframe = *p->trapframe;
+        p->trapframe->epc = (uint64)p->handler;
+        release(&p->lock);
+        usertrapret();
+      }
+      release(&p->lock);
+    }
+
+    // give up the CPU 
     yield();
+  }
 
   usertrapret();
 }
@@ -218,3 +235,26 @@ devintr()
   }
 }
 
+uint64
+sys_sigalarm(void)
+{
+  int ticks;
+  uint64 handler;
+
+  if (argint(0, &ticks) < 0 || argaddr(1, &handler) < 0)
+    return -1;
+
+  myproc()->interval = ticks;
+  myproc()->handler = (void (*)())handler;
+
+  return 0;
+}
+
+uint64
+sys_sigreturn(void)
+{
+  struct proc *p = myproc();
+  *(p->trapframe) = p->alarm_trapframe;
+  p->no_alarm = 0;
+  return 0;
+}
