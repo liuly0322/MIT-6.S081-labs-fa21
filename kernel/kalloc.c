@@ -13,6 +13,7 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
+extern unsigned char phyrefcount[PHYADDRESS / PGSIZE];
 
 struct run {
   struct run *next;
@@ -76,7 +77,10 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
+  if(r) {
+    phyrefcount[PA2INDEX(r)] = 1;
+    memset((char*)r, 5, PGSIZE);
+  }
+
   return (void*)r;
 }

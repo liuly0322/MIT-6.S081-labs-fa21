@@ -15,6 +15,8 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+unsigned char phyrefcount[PHYADDRESS / PGSIZE];
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -180,7 +182,8 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      kfree((void*)pa);
+      if (--phyrefcount[PA2INDEX(pa)] == 0)
+        kfree((void*)pa);
     }
     *pte = 0;
   }
@@ -301,30 +304,23 @@ int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
-  uint64 pa, i;
-  uint flags;
-  char *mem;
 
-  for(i = 0; i < sz; i += PGSIZE){
+  for(uint64 i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+    *pte |= PTE_COW;
+    *pte &= ~PTE_W;
+    uint64 pa = PTE2PA(*pte);
+    uint flags = PTE_FLAGS(*pte);
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      uvmunmap(new, 0, i / PGSIZE, 1);
+      return -1;
     }
+    phyrefcount[PA2INDEX(pa)]++;
   }
-  return 0;
-
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+  return 0;  
 }
 
 // mark a PTE invalid for user access.
@@ -340,6 +336,25 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+int
+cow_pte_copy(pte_t* pte) {
+  uint64 pa = PTE2PA(*pte);
+  if (--phyrefcount[PA2INDEX(pa)] == 0) {
+    // no other process is using this page
+    // clear COW and set W
+    *pte = (*pte | PTE_W) & ~PTE_COW;
+    phyrefcount[PA2INDEX(pa)] = 1;
+    return 0;
+  }
+  char *mem = kalloc();
+  if (mem == 0) {
+    return -1;
+  }
+  memmove(mem, (char*)pa, PGSIZE);
+  *pte = (PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW;
+  return 0;
+}
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -350,7 +365,16 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
+    if(walkaddr(pagetable, va0) == 0)
+      return -1;
+
+    pte_t *pte = walk(pagetable, va0, 0);
+    if (*pte & PTE_COW) {
+      if (cow_pte_copy(pte) < 0) {
+        return -1;
+      }
+    }
+    pa0 = PTE2PA(*pte);
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);
