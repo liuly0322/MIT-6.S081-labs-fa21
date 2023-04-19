@@ -40,3 +40,24 @@
   - 硬件中断只造成最小影响: 关中断, 保存 Trap 前 pc 和状态信息, 以特权级切换到 handler.
   - 软件需要负责 Trap 过程中的页表切换 (因此需要共享 Trampoline), 寄存器现场保存 (共享 Trapframe) 等.
   - 硬件操作尽可能简单可以给软件更高的自由度 (是否切换页表等).
+
+## COW Lab
+
+回顾虚拟内存：
+
+- 实现了进程需要的地址空间隔离.
+- 作为间接层, 可以允许提供虚拟地址连续但物理地址不必连续的大片内存空间; 且可以用于多对一映射 (如 trampoline), guard page 等有趣的机制.
+
+配合页错误异常处理，还可以做哪些有意思的事情？
+
+- lazy allocation: 堆内存的懒分配 (写时分配).
+- zero fill on demand: 初始 BSS 段映射到全 0 只读页，写时分配.
+- copy-on-write fork: fork 内存写时分配.
+- demand paging: swap 机制，与磁盘结合.
+- memory mapped files: 加速文件 I/O.
+
+通过控制状态寄存器实现:
+
+- 出错的访存虚拟地址：STVAL.
+- 出错的原因：SCAUSE, 对地址的异常读/写/执行.
+- 出错的指令地址：SEPC.
