@@ -38,7 +38,7 @@
 - 内核 (Supervisor mode) 的特权: 能访问控制状态寄存器 (包含 Trap 状态信息, Trap 前 pc, Trap handler 的地址等), 从而有能力处理和控制中断.
 - Trap 的三种类型: 系统调用, exception, 硬件中断.
   - 硬件中断只造成最小影响: 关中断, 保存 Trap 前 pc 和状态信息, 以特权级切换到 handler.
-  - 软件需要负责 Trap 过程中的页表切换 (因此需要共享 Trampoline), 寄存器现场保存 (共享 Trapframe) 等.
+  - 软件需要负责 Trap 过程中的页表切换 (因此需要共享 Trampoline), 寄存器现场保存等.
   - 硬件操作尽可能简单可以给软件更高的自由度 (是否切换页表等).
 
 ## COW Lab
