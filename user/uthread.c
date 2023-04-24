@@ -10,10 +10,26 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
-
+struct threadcontext {
+    uint64 x1;  // ra: return addres
+    uint64 x2;  // sp
+    uint64 x8;  // s0,fp
+    uint64 x9;  // s1
+    uint64 x18; // x18-27: s2-11
+    uint64 x19;
+    uint64 x20;
+    uint64 x21;
+    uint64 x22;
+    uint64 x23;
+    uint64 x24;
+    uint64 x25;
+    uint64 x26;
+    uint64 x27;
+};
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct threadcontext context; /* swtch() here to run thread */
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
@@ -62,6 +78,7 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    thread_switch((uint64)&t->context, (uint64)&next_thread->context);
   } else
     next_thread = 0;
 }
@@ -75,7 +92,8 @@ thread_create(void (*func)())
     if (t->state == FREE) break;
   }
   t->state = RUNNABLE;
-  // YOUR CODE HERE
+  t->context.x1 = (uint64)func;
+  t->context.x2 = (uint64)(t->stack + STACK_SIZE);
 }
 
 void 
