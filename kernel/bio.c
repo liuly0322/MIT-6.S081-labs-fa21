@@ -26,6 +26,7 @@
 #define NBUCKET 13
 
 struct {
+  struct spinlock evict_lock;
   struct buf buf[NBUF];
   struct spinlock bucket_lock[NBUCKET];
   struct buf head[NBUCKET];
@@ -42,6 +43,7 @@ binit(void)
 {
   struct buf *b;
 
+  initlock(&bcache.evict_lock, "bcache");
   for (int i = 0; i < NBUCKET; i++) {
     initlock(&bcache.bucket_lock[i], "bcache.bucket");
     // Create linked list of buffers
@@ -66,11 +68,10 @@ static struct buf*
 bget(uint dev, uint blockno)
 {
   struct buf *b;
-
   int bucket = hash(dev, blockno);
-  acquire(&bcache.bucket_lock[bucket]);
 
   // Is the block already cached?
+  acquire(&bcache.bucket_lock[bucket]);
   for(b = bcache.head[bucket].next; b != &bcache.head[bucket]; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
@@ -82,7 +83,22 @@ bget(uint dev, uint blockno)
   release(&bcache.bucket_lock[bucket]);
 
   // Not cached.
-  // Find block with refcnt == 0 and min timestamp
+  // Find block with refcnt == 0 and min timestamps
+  acquire(&bcache.evict_lock);
+
+  // check agagin
+  acquire(&bcache.bucket_lock[bucket]);
+  for(b = bcache.head[bucket].next; b != &bcache.head[bucket]; b = b->next){
+    if(b->dev == dev && b->blockno == blockno){
+      b->refcnt++;
+      release(&bcache.bucket_lock[bucket]);
+      release(&bcache.evict_lock);
+      acquiresleep(&b->lock);
+      return b;
+    }
+  }
+  release(&bcache.bucket_lock[bucket]);
+
   struct buf* lrublock = 0;
   for (int i = 0; i < NBUCKET; i++) {
     acquire(&bcache.bucket_lock[i]);
@@ -127,6 +143,7 @@ bget(uint dev, uint blockno)
   bcache.head[bucket].next = lrublock;
   release(&bcache.bucket_lock[bucket]);
 
+  release(&bcache.evict_lock);
   acquiresleep(&lrublock->lock);
   return lrublock;
 }
