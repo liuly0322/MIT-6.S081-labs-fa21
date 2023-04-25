@@ -100,42 +100,40 @@ bget(uint dev, uint blockno)
   release(&bcache.bucket_lock[bucket]);
 
   struct buf* lrublock = 0;
+  struct spinlock* lrulock = 0;
   for (int i = 0; i < NBUCKET; i++) {
     acquire(&bcache.bucket_lock[i]);
     struct buf* update_block = 0;
     for(b = bcache.head[i].next; b != &bcache.head[i]; b = b->next){
-      if(b->refcnt == 0) {
-        if ((lrublock == 0 || b->timestamp < lrublock->timestamp) &&
-           (update_block == 0 || b->timestamp < update_block->timestamp)) {
+      if(b->refcnt == 0 && (lrublock == 0 || b->timestamp < lrublock->timestamp) &&
+           (update_block == 0 || b->timestamp < update_block->timestamp) ) {
           update_block = b;
-        }
       }
     }
     if (update_block) {
-      // insert cur lrublock (if there is)
-      if (lrublock) {
-        lrublock->next = bcache.head[i].next;
-        lrublock->prev = &bcache.head[i];
-        bcache.head[i].next->prev = lrublock;
-        bcache.head[i].next = lrublock;
-      }
-      // remove update_block and set it to lrublock
-      update_block->prev->next = update_block->next;
-      update_block->next->prev = update_block->prev;
+      if (lrulock) release(lrulock);
+      lrulock = &bcache.bucket_lock[i];
       lrublock = update_block;
+    } else {
+      release(&bcache.bucket_lock[i]);
     }
-    release(&bcache.bucket_lock[i]);
   }
 
   if (!lrublock)
     panic("bget: no buffers");
 
-  // insert lrublock to bucket.
+  // remove lrublock from bucket.
+  lrublock->prev->next = lrublock->next;
+  lrublock->next->prev = lrublock->prev;
+  release(lrulock);
+
+  // init lrublock
   lrublock->dev = dev;
   lrublock->blockno = blockno;
   lrublock->valid = 0;
   lrublock->refcnt = 1;
 
+  // insert lrublock to bucket.
   acquire(&bcache.bucket_lock[bucket]);
   lrublock->next = bcache.head[bucket].next;
   lrublock->prev = &bcache.head[bucket];
