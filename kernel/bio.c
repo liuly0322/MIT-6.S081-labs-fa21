@@ -106,17 +106,18 @@ bget(uint dev, uint blockno)
     struct buf* update_block = 0;
     for(b = bcache.head[i].next; b != &bcache.head[i]; b = b->next){
       if(b->refcnt == 0 && (lrublock == 0 || b->timestamp < lrublock->timestamp) &&
-           (update_block == 0 || b->timestamp < update_block->timestamp) ) {
-          update_block = b;
+        (update_block == 0 || b->timestamp < update_block->timestamp) ) {
+        if (!update_block) {
+          if (lrulock) release(lrulock);
+          lrulock = &bcache.bucket_lock[i];
+        }
+        update_block = b;
       }
     }
-    if (update_block) {
-      if (lrulock) release(lrulock);
-      lrulock = &bcache.bucket_lock[i];
+    if (update_block)
       lrublock = update_block;
-    } else {
+    else
       release(&bcache.bucket_lock[i]);
-    }
   }
 
   if (!lrublock)
